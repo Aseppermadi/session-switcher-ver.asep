@@ -22,7 +22,33 @@ export interface ClearSessionMessage extends BaseMessage {
   tabId: number;
 }
 
-export type MessageType = GetCurrentSessionMessage | SwitchSessionMessage | ClearSessionMessage;
+// GetCurrentDomainMessage removed - now using URL parameters
+
+export interface ClearSessionsMessage extends BaseMessage {
+  action: "clearSessions";
+  clearOption: "current" | "all";
+  domain: string;
+}
+
+export interface ExportSessionsMessage extends BaseMessage {
+  action: "exportSessions";
+  exportOption: "current" | "all";
+  domain: string;
+}
+
+export interface ImportSessionsMessage extends BaseMessage {
+  action: "importSessions";
+  data: string;
+}
+
+export type MessageType = 
+  | GetCurrentSessionMessage 
+  | SwitchSessionMessage 
+  | ClearSessionMessage
+  // GetCurrentDomainMessage removed - now using URL parameters
+  | ClearSessionsMessage
+  | ExportSessionsMessage
+  | ImportSessionsMessage;
 
 export interface MessageResponse<T = undefined> {
   success: boolean;

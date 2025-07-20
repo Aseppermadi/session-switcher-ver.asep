@@ -15,15 +15,30 @@ class PopupController {
   private currentSiteElement: HTMLElement;
   private saveBtn: HTMLButtonElement;
   private newSessionBtn: HTMLButtonElement;
+  private clearSessionBtn: HTMLButtonElement;
+  private exportImportBtn: HTMLButtonElement;
+  private viewModeBtn: HTMLButtonElement;
+  private menuBtn: HTMLButtonElement;
+  private menuDropdown: HTMLElement;
+  private aboutBtn: HTMLButtonElement;
+  private sessionsListElement: HTMLElement;
+  state: any;
 
   constructor() {
     // Get DOM elements
     this.currentSiteElement = getElementByIdSafe("currentSite");
     this.saveBtn = getElementByIdSafe("saveBtn");
     this.newSessionBtn = getElementByIdSafe("newSessionBtn");
+    this.clearSessionBtn = getElementByIdSafe("clearSessionBtn");
+    this.exportImportBtn = getElementByIdSafe("exportImportBtn");
+    this.viewModeBtn = getElementByIdSafe("viewModeBtn");
+    this.menuBtn = getElementByIdSafe("menuBtn");
+    this.menuDropdown = getElementByIdSafe("menuDropdown");
+    this.aboutBtn = getElementByIdSafe("aboutBtn");
+    this.sessionsListElement = getElementByIdSafe("sessionsList");
 
     // Initialize session list
-    this.sessionList = new SessionList(getElementByIdSafe("sessionsList"));
+    this.sessionList = new SessionList(this.sessionsListElement);
     this.setupSessionListHandlers();
     this.setupEventListeners();
   }
@@ -31,11 +46,19 @@ class PopupController {
   async initialize(): Promise<void> {
     try {
       this.modalManager.hideAllModals();
-      const state = await this.loadingManager.withLoading(async () => {
+      this.state = await this.loadingManager.withLoading(async () => {
         return await this.popupService.initialize();
       });
 
-      this.currentSiteElement.textContent = state.currentDomain;
+      this.currentSiteElement.textContent = this.state.currentDomain;
+      
+      // Apply saved view mode
+      if (this.state.viewMode === 'grid') {
+        this.switchToGridView(false);
+      } else {
+        this.switchToListView(false);
+      }
+      
       this.renderSessionsList();
     } catch (error) {
       this.showError(handleError(error, "PopupController.initialize"));
@@ -48,12 +71,30 @@ class PopupController {
 
   private setupEventListeners(): void {
     this.saveBtn.addEventListener("click", () => this.handleSaveClick());
-    this.newSessionBtn.addEventListener("click", () => this.handleNewSessionClick());
+    this.newSessionBtn.addEventListener("click", () => this.handleNewSessionConfirmClick());
+    this.clearSessionBtn.addEventListener("click", () => this.handleClearSessionClick());
+    this.exportImportBtn.addEventListener("click", () => this.handleExportImportClick());
+    this.viewModeBtn.addEventListener("click", () => this.toggleViewMode());
+    this.menuBtn.addEventListener("click", () => this.toggleMenu());
+    this.aboutBtn.addEventListener("click", () => this.handleAboutClick());
+    
+    // Close menu when clicking outside
+    document.addEventListener("click", (e) => {
+      if (!this.menuBtn.contains(e.target as Node) && !this.menuDropdown.contains(e.target as Node)) {
+        this.menuDropdown.classList.remove("show");
+      }
+    });
 
     // Modal event listeners
     getElementByIdSafe("confirmSave").addEventListener("click", () => this.handleConfirmSave());
     getElementByIdSafe("confirmRename").addEventListener("click", () => this.handleConfirmRename());
     getElementByIdSafe("confirmDelete").addEventListener("click", () => this.handleConfirmDelete());
+    getElementByIdSafe("replaceSessionBtn").addEventListener("click", () => this.handleReplaceSessionClick());
+    getElementByIdSafe("confirmReplaceSession").addEventListener("click", () => this.handleReplaceSession());
+    getElementByIdSafe("confirmNewSession").addEventListener("click", () => this.handleNewSessionClick());
+    getElementByIdSafe("confirmClearSession").addEventListener("click", () => this.handleConfirmClearSession());
+    getElementByIdSafe("exportBtn").addEventListener("click", () => this.handleExport());
+    getElementByIdSafe("importBtn").addEventListener("click", () => this.handleImport());
   }
 
   private setupSessionListHandlers(): void {
@@ -65,15 +106,18 @@ class PopupController {
   }
 
   private async handleSaveClick(): Promise<void> {
-    this.modalManager.showSaveModal();
+    const sessions = this.popupService.getState().sessions;
+    const nextOrder = sessions.length > 0 ? Math.max(...sessions.map(s => s.order || 0)) + 1 : 1;
+    this.modalManager.showSaveModal("", nextOrder);
   }
 
   private async handleConfirmSave(): Promise<void> {
     try {
-      const name = this.modalManager.getSaveModalInput();
+      const { name, order } = this.modalManager.getSaveModalInput();
 
       await this.loadingManager.withLoading(async () => {
-        await this.popupService.saveCurrentSession(name);
+        const orderNum = order ? parseInt(order, 10) : undefined;
+        await this.popupService.saveCurrentSession(name, orderNum);
       });
 
       this.modalManager.hideSaveModal();
@@ -111,23 +155,56 @@ class PopupController {
     const session = this.popupService.getSession(sessionId);
     if (session) {
       this.popupService.setState({ currentRenameSessionId: sessionId });
-      this.modalManager.showRenameModal(session.name);
+      this.modalManager.showRenameModal(session.name, session.order);
     }
   }
 
   private async handleConfirmRename(): Promise<void> {
     try {
-      const newName = this.modalManager.getRenameModalInput();
+      const { name, order } = this.modalManager.getRenameModalInput();
       const sessionId = this.popupService.getState().currentRenameSessionId;
 
-      if (newName && sessionId) {
-        await this.popupService.renameSession(sessionId, newName);
+      if (name && order && sessionId) {
+        const orderNum = parseInt(order, 10);
+        await this.popupService.renameSession(sessionId, name, orderNum);
         this.renderSessionsList();
       }
 
       this.modalManager.hideRenameModal();
     } catch (error) {
       this.showError(handleError(error, "rename session"));
+    }
+  }
+
+  private handleReplaceSessionClick(): Promise<void> {
+    try {
+        const sessionId = this.popupService.getState().currentRenameSessionId;
+        if (sessionId) {
+            const session = this.popupService.getSession(sessionId);
+            if (session) {
+                this.modalManager.showReplaceConfirmModal(session.name);
+            }
+        }
+        return Promise.resolve();
+    } catch (error) {
+        this.showError(handleError(error, "prepare replace session"));
+        return Promise.resolve();
+    }
+  }
+
+  private async handleReplaceSession(): Promise<void> {
+    try {
+        const sessionId = this.popupService.getState().currentRenameSessionId;
+        if (sessionId) {
+            await this.loadingManager.withLoading(async () => {
+                await this.popupService.replaceSession(sessionId);
+            });
+            this.renderSessionsList();
+        }
+        this.modalManager.hideReplaceConfirmModal();
+        this.modalManager.hideRenameModal();
+    } catch (error) {
+        this.showError(handleError(error, "replace session"));
     }
   }
 
@@ -154,6 +231,52 @@ class PopupController {
     }
   }
 
+  private switchToListView(savePreference: boolean = true): void {
+    this.sessionsListElement.classList.remove("grid-view");
+    this.viewModeBtn.textContent = "Grid";
+    
+    if (savePreference) {
+      this.popupService.setViewMode('list');
+    }
+    
+    this.renderSessionsList();
+  }
+
+  private switchToGridView(savePreference: boolean = true): void {
+    this.sessionsListElement.classList.add("grid-view");
+
+    this.viewModeBtn.textContent = "List";
+    
+    if (savePreference) {
+      this.popupService.setViewMode('grid');
+    }
+    
+    this.renderSessionsList();
+  }
+  
+  private toggleViewMode(): void {
+    const isGridView = this.sessionsListElement.classList.contains("grid-view");
+    if (isGridView) {
+      this.switchToListView();
+    } else {
+      this.switchToGridView();
+    }
+  }
+  
+  private toggleMenu(): void {
+    this.menuDropdown.classList.toggle("show");
+  }
+  
+  private handleAboutClick(): void {
+    this.modalManager.showAboutModal();
+    this.menuDropdown.classList.remove("show");
+  }
+  
+  private handleNewSessionConfirmClick(): void {
+    this.modalManager.showNewSessionConfirmModal();
+    this.menuDropdown.classList.remove("show");
+  }
+
   private renderSessionsList(): void {
     const state = this.popupService.getState();
     this.sessionList.render(state.sessions, state.activeSessions, state.currentDomain);
@@ -163,6 +286,94 @@ class PopupController {
     console.error("Popup error:", message);
 
     this.modalManager.showErrorModal(message);
+  }
+
+  private handleClearSessionClick(): void {
+    // Show the clear session modal instead of opening a new page
+    this.modalManager.showClearSessionModal();
+    this.menuDropdown.classList.remove("show");
+  }
+
+  private async handleConfirmClearSession(): Promise<void> {
+    try {
+      const clearOption = this.modalManager.getClearSessionOption();
+      
+      await this.loadingManager.withLoading(async () => {
+        await this.popupService.clearSessions(clearOption);
+      });
+
+      this.modalManager.hideClearSessionModal();
+      this.renderSessionsList();
+    } catch (error) {
+      this.showError(handleError(error, "clear sessions"));
+    }
+  }
+
+  private handleExportImportClick(): void {
+    // Show the export/import modal instead of opening a new page
+    this.modalManager.showExportImportModal();
+    this.menuDropdown.classList.remove("show");
+  }
+
+  private handleExport(): void {
+    try {
+      const exportOption = this.modalManager.getExportOption();
+      const jsonData = this.popupService.exportSessions(exportOption);
+      
+      // Create a blob and download link
+      const blob = new Blob([jsonData], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      
+      // Create a temporary link element and trigger download
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `session-switcher-export-${new Date().toISOString().slice(0, 10)}.json`;
+      document.body.appendChild(a);
+      a.click();
+      
+      // Clean up
+      setTimeout(() => {
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      }, 0);
+    } catch (error) {
+      this.showError(handleError(error, "export sessions"));
+    }
+  }
+
+  private async handleImport(): Promise<void> {
+    try {
+      const file = this.modalManager.getImportFile();
+      if (!file) {
+        this.showError("No file selected");
+        return;
+      }
+      
+      // Read the file
+      const reader = new FileReader();
+      reader.onload = async (e) => {
+        try {
+          const jsonData = e.target?.result as string;
+          
+          await this.loadingManager.withLoading(async () => {
+            await this.popupService.importSessions(jsonData);
+          });
+          
+          this.modalManager.hideExportImportModal();
+          this.renderSessionsList();
+        } catch (error) {
+          this.showError(handleError(error, "import sessions"));
+        }
+      };
+      
+      reader.onerror = () => {
+        this.showError("Error reading file");
+      };
+      
+      reader.readAsText(file);
+    } catch (error) {
+      this.showError(handleError(error, "import sessions"));
+    }
   }
 }
 

@@ -46,6 +46,8 @@ for (const file of popupFiles) {
   }
 }
 
+// No longer copying popup pages as they're now integrated as modals in the main popup
+
 // Copy icons/assets folder if exists
 try {
   await $`cp -R ${assetsDir} ${distDir}/`;

@@ -8,4 +8,5 @@ export interface StorageData {
 export interface ExtensionStorage {
   sessions: SessionData[];
   activeSessions: ActiveSessions;
+  viewMode?: 'list' | 'grid';
 }

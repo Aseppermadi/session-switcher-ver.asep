@@ -1,6 +1,7 @@
 export interface SessionData extends StoredSession {
   id: string;
   name: string;
+  order: number;
   domain: string;
   createdAt: number;
   lastUsed: number;

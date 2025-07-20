@@ -7,6 +7,7 @@ export interface PopupState {
   activeSessions: ActiveSessions;
   currentRenameSessionId: string;
   currentDeleteSessionId: string;
+  viewMode: 'list' | 'grid';
 }
 
 export interface PopupElements {

@@ -25,7 +25,7 @@ export class SessionList {
   }
 
   render(sessions: SessionData[], activeSessions: ActiveSessions, currentDomain: string): void {
-    const domainSessions = sessions.filter((s) => s.domain === currentDomain);
+    const domainSessions = sessions.filter((s) => s.domain === currentDomain).sort((a, b) => a.order - b.order);
     const activeSessionId = activeSessions[currentDomain];
 
     if (domainSessions.length === 0) {
@@ -34,6 +34,25 @@ export class SessionList {
     }
 
     this.renderSessions(domainSessions, activeSessionId);
+    this.setupTooltips();
+  }
+  
+  private setupTooltips(): void {
+    const gridItems = this.container.querySelectorAll('.session-item.grid-view');
+    
+    gridItems.forEach(item => {
+      const tooltip = item.querySelector('.custom-tooltip') as HTMLElement;
+      
+      if (tooltip) {
+        item.addEventListener('mouseenter', () => {
+          tooltip.style.opacity = '1';
+        });
+        
+        item.addEventListener('mouseleave', () => {
+          tooltip.style.opacity = '0';
+        });
+      }
+    });
   }
 
   private renderEmptyState(): void {
@@ -41,15 +60,26 @@ export class SessionList {
   }
 
   private renderSessions(sessions: SessionData[], activeSessionId?: string): void {
+    const isGridView = this.container.classList.contains("grid-view");
+
     const sessionsHtml = sessions
       .map((session) => {
         const isActive = session.id === activeSessionId;
         const lastUsed = formatDate(session.lastUsed);
 
+        if (isGridView) {
+          return `
+          <div class="${CSS_CLASSES.SESSION_ITEM} grid-view ${isActive ? CSS_CLASSES.ACTIVE : ""}" data-session-id="${session.id}">
+            <div class="session-order">${session.order}</div>
+            <div class="custom-tooltip">${escapeHtml(session.name)}</div>
+          </div>
+        `;
+        }
+
         return `
-        <div class="${CSS_CLASSES.SESSION_ITEM} ${isActive ? CSS_CLASSES.ACTIVE : ""}" data-session-id="${session.id}">
+        <div class="${CSS_CLASSES.SESSION_ITEM} ${isActive ? CSS_CLASSES.ACTIVE : ""} mb-8" data-session-id="${session.id}">
           <div class="session-info">
-            <div class="session-name">${escapeHtml(session.name)}</div>
+            <div class="session-name"><span class="session-order-badge">#${session.order}</span> ${escapeHtml(session.name)}</div>
             <div class="session-meta">${UI_TEXT.LAST_USED} ${lastUsed}</div>
           </div>
           <div class="session-actions">

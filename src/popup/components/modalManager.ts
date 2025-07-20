@@ -11,15 +11,24 @@ export class ModalManager {
       save: getElementByIdSafe("saveModal"),
       rename: getElementByIdSafe("renameModal"),
       delete: getElementByIdSafe("deleteModal"),
-      error: getElementByIdSafe("errorModal")
+      error: getElementByIdSafe("errorModal"),
+      about: getElementByIdSafe("aboutModal"),
+      newSessionConfirm: getElementByIdSafe("newSessionConfirmModal"),
+      clearSession: getElementByIdSafe("clearSessionModal"),
+      exportImport: getElementByIdSafe("exportImportModal"),
+      replaceConfirm: getElementByIdSafe("replaceConfirmModal")
     };
 
     this.inputs = {
       sessionName: getElementByIdSafe("sessionName"),
-      newSessionName: getElementByIdSafe("newSessionName")
+      sessionOrder: getElementByIdSafe("sessionOrder"),
+      newSessionName: getElementByIdSafe("newSessionName"),
+      newSessionOrder: getElementByIdSafe("newSessionOrder"),
+      importFileInput: getElementByIdSafe("importFileInput"),
     };
 
     this.setupEventListeners();
+    this.setupTabSystem();
   }
 
   private setupEventListeners(): void {
@@ -31,11 +40,27 @@ export class ModalManager {
       { id: "closeDeleteModal", modal: "delete" },
       { id: "cancelDelete", modal: "delete" },
       { id: "closeErrorModal", modal: "error" },
-      { id: "closeErrorModalBtn", modal: "error" }
+      { id: "closeErrorModalBtn", modal: "error" },
+      { id: "closeAboutModal", modal: "about" },
+      { id: "closeAboutModalBtn", modal: "about" },
+      { id: "closeNewSessionConfirmModal", modal: "newSessionConfirm" },
+      { id: "cancelNewSession", modal: "newSessionConfirm" },
+      { id: "closeClearSessionModal", modal: "clearSession" },
+      { id: "cancelClearSession", modal: "clearSession" },
+      { id: "closeExportImportModal", modal: "exportImport" },
+      { id: "closeExportImportModalBtn", modal: "exportImport" },
+      { id: "closeReplaceConfirmModal", modal: "replaceConfirm" },
+      { id: "cancelReplaceConfirm", modal: "replaceConfirm" }
     ];
 
     closeButtons.forEach(({ id, modal }) => {
       getElementByIdSafe(id).addEventListener("click", () => this.hide(modal as keyof ModalList));
+    });
+    
+    // Setup import file input listener
+    this.inputs.importFileInput.addEventListener("change", () => {
+      const importBtn = getElementByIdSafe("importBtn");
+      (importBtn as HTMLButtonElement).disabled = !this.inputs.importFileInput.files || this.inputs.importFileInput.files.length === 0;
     });
 
     // Enter key handlers
@@ -78,15 +103,17 @@ export class ModalManager {
     });
   }
 
-  showSaveModal(defaultName: string = "Unnamed Session"): void {
+  showSaveModal(defaultName: string = "Unnamed Session", order: number): void {
     this.inputs.sessionName.value = defaultName;
+    this.inputs.sessionOrder.value = order.toString();
     this.show("save");
     this.inputs.sessionName.focus();
     this.inputs.sessionName.select();
   }
 
-  showRenameModal(currentName: string): void {
+  showRenameModal(currentName: string, currentOrder: number): void {
     this.inputs.newSessionName.value = currentName;
+    this.inputs.newSessionOrder.value = currentOrder.toString();
     this.show("rename");
     this.inputs.newSessionName.focus();
     this.inputs.newSessionName.select();
@@ -109,24 +136,113 @@ export class ModalManager {
     this.show("error");
     this.modals.error.focus();
   }
-
-  getSaveModalInput(): string {
-    return this.inputs.sessionName.value.trim();
+  
+  showAboutModal(): void {
+    this.show("about");
+    this.modals.about.focus();
+  }
+  
+  showNewSessionConfirmModal(): void {
+    this.show("newSessionConfirm");
+    this.modals.newSessionConfirm.focus();
   }
 
-  getRenameModalInput(): string {
-    return this.inputs.newSessionName.value.trim();
+  getSaveModalInput(): { name: string; order: string } {
+    return {
+      name: this.inputs.sessionName.value.trim(),
+      order: this.inputs.sessionOrder.value,
+    };
+  }
+
+  getRenameModalInput(): { name: string; order: string } {
+    return {
+      name: this.inputs.newSessionName.value.trim(),
+      order: this.inputs.newSessionOrder.value,
+    };
   }
 
   hideSaveModal(): void { this.hide("save"); }
   hideRenameModal(): void { this.hide("rename"); }
   hideDeleteModal(): void { this.hide("delete"); }
   hideErrorModal(): void { this.hide("error"); }
+  hideAboutModal(): void { this.hide("about"); }
+  hideNewSessionConfirmModal(): void { this.hide("newSessionConfirm"); }
+  hideClearSessionModal(): void { this.hide("clearSession"); }
+  hideExportImportModal(): void { this.hide("exportImport"); }
+  hideReplaceConfirmModal(): void { this.hide("replaceConfirm"); }
+
+  showClearSessionModal(): void {
+    this.show("clearSession");
+    this.modals.clearSession.focus();
+  }
+
+  showExportImportModal(): void {
+    this.show("exportImport");
+    this.modals.exportImport.focus();
+    // Reset the import file input
+    this.inputs.importFileInput.value = "";
+(getElementByIdSafe("importBtn") as HTMLButtonElement).disabled = true;
+  }
+  
+  showReplaceConfirmModal(sessionName: string): void {
+    const replaceSessionNameEl = document.getElementById("replaceSessionName");
+    if (replaceSessionNameEl) {
+      replaceSessionNameEl.textContent = sessionName;
+    }
+    this.show("replaceConfirm");
+    this.modals.replaceConfirm.focus();
+  }
+
+  getClearSessionOption(): string {
+    const selectElement = document.getElementById('clearOptionSelect') as HTMLSelectElement;
+    return selectElement ? selectElement.value : "current"; // Default to current website only
+  }
+
+  getExportOption(): string {
+    const selectElement = document.getElementById('exportOptionSelect') as HTMLSelectElement;
+    return selectElement ? selectElement.value : "current"; // Default to current website only
+  }
+
+  setupTabSystem(): void {
+    // Get tab elements
+    const exportTabBtn = document.getElementById('exportTabBtn');
+    const importTabBtn = document.getElementById('importTabBtn');
+    const exportTab = document.getElementById('exportTab');
+    const importTab = document.getElementById('importTab');
+
+    if (exportTabBtn && importTabBtn && exportTab && importTab) {
+      // Add click event listeners to tab buttons
+      exportTabBtn.addEventListener('click', () => {
+        // Activate export tab
+        exportTabBtn.classList.add('active');
+        importTabBtn.classList.remove('active');
+        exportTab.classList.add('active');
+        importTab.classList.remove('active');
+      });
+
+      importTabBtn.addEventListener('click', () => {
+        // Activate import tab
+        importTabBtn.classList.add('active');
+        exportTabBtn.classList.remove('active');
+        importTab.classList.add('active');
+        exportTab.classList.remove('active');
+      });
+    }
+  }
+
+  getImportFile(): File | null {
+    return this.inputs.importFileInput.files && this.inputs.importFileInput.files.length > 0
+      ? this.inputs.importFileInput.files[0]
+      : null;
+  }
 
   hideAllModals(): void {
     this.hideVisible();
     this.inputs.sessionName.value = "";
+    this.inputs.sessionOrder.value = "";
     this.inputs.newSessionName.value = "";
+    this.inputs.newSessionOrder.value = "";
+    this.inputs.importFileInput.value = "";
   }
 
   private isVisible(modalKey: keyof ModalList): boolean {
