@@ -6,13 +6,6 @@
 ![Session Switcher Screenshot 2](https://github.com/user-attachments/assets/27d8ab68-9a21-4346-a13f-c5f809701328)
 
 ---
-
-## 🌍 Installation
-
-Check out the [release page](https://github.com/kuronekony4n/session-switcher/releases)!
-
----
-
 ## 🚀 Features
 
 - 🔐 **Save Login Sessions**  
