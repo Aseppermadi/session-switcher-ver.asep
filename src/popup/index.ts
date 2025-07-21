@@ -106,8 +106,15 @@ class PopupController {
   }
 
   private async handleSaveClick(): Promise<void> {
-    const sessions = this.popupService.getState().sessions;
-    const nextOrder = sessions.length > 0 ? Math.max(...sessions.map(s => s.order || 0)) + 1 : 1;
+    const state = this.popupService.getState();
+    const currentDomain = state.currentDomain;
+    
+    // Filter sessions by current domain
+    const domainSessions = state.sessions.filter(s => s.domain === currentDomain);
+    
+    // Calculate next order based on domain-specific sessions
+    const nextOrder = domainSessions.length > 0 ? Math.max(...domainSessions.map(s => s.order || 0)) + 1 : 1;
+    
     this.modalManager.showSaveModal("", nextOrder);
   }
 
@@ -140,14 +147,30 @@ class PopupController {
   }
 
   private async handleSessionSwitch(sessionId: string): Promise<void> {
+    if (!sessionId) {
+      this.showError('Invalid session ID');
+      return;
+    }
+
     try {
+      console.log('Switching to session:', sessionId);
+      
       await this.loadingManager.withLoading(async () => {
         await this.popupService.switchToSession(sessionId);
       });
 
+      console.log('Session switch completed successfully');
       this.renderSessionsList();
     } catch (error) {
-      this.showError(handleError(error, "switch session"));
+      console.error('Error switching session:', error);
+      const errorMessage = handleError(error, "switch session");
+      
+      // Show a more user-friendly error message
+      if (errorMessage.includes('Receiving end does not exist')) {
+        this.showError('Connection to background service failed. Please try reloading the extension.');
+      } else {
+        this.showError(errorMessage);
+      }
     }
   }
 

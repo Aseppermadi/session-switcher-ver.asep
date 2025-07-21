@@ -44,17 +44,41 @@ export class CookieHandler {
   }
 
   async restoreCookies(cookies: chrome.cookies.Cookie[], domain: string): Promise<void> {
+    if (!cookies || !Array.isArray(cookies)) {
+      console.error('Invalid cookies array provided:', cookies);
+      return;
+    }
+
+    if (!domain) {
+      console.error('Invalid domain provided for cookie restoration');
+      return;
+    }
+
+    console.log(`Restoring ${cookies.length} cookies for domain: ${domain}`);
+    
+    // Track success and failure counts
+    let successCount = 0;
+    let failureCount = 0;
+    
     const restorePromises = cookies.map(async (cookie) => {
+      if (!cookie || !cookie.name) {
+        console.warn('Skipping invalid cookie:', cookie);
+        failureCount++;
+        return;
+      }
+      
       try {
         const cookieDetails = this.prepareCookieForRestore(cookie, domain);
-
         await chrome.cookies.set(cookieDetails);
+        successCount++;
       } catch (error) {
-        console.warn("Failed to restore cookie:", cookie.name, error);
+        failureCount++;
+        console.warn(`Failed to restore cookie: ${cookie.name}`, error);
       }
     });
 
     await Promise.all(restorePromises);
+    console.log(`Cookie restoration complete - Success: ${successCount}, Failed: ${failureCount}`);
   }
 
   private buildCookieUrl(cookie: chrome.cookies.Cookie, fallbackDomain?: string): string {

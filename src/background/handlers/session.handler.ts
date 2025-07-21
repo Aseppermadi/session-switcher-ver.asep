@@ -25,22 +25,49 @@ export class SessionHandler {
   }
 
   async switchToSession(sessionData: SessionData, tabId: number): Promise<void> {
+    if (!sessionData || !tabId) {
+      console.error('Invalid session data or tab ID:', { sessionData, tabId });
+      throw new ExtensionError('Invalid session data or tab ID');
+    }
+
     const { domain, cookies, localStorage, sessionStorage } = sessionData;
+    
+    if (!domain) {
+      console.error('Missing domain in session data:', sessionData);
+      throw new ExtensionError('Missing domain in session data');
+    }
+
+    console.log(`Switching to session for domain: ${domain}, tab: ${tabId}`);
 
     try {
+      // Step 1: Clear existing cookies
+      console.log('Clearing cookies for domain:', domain);
       await this.cookieHandler.clearCookiesForDomain(domain);
 
-      await Promise.all([
+      // Step 2: Restore session data (cookies and storage)
+      console.log('Restoring session data...');
+      const results = await Promise.allSettled([
         this.cookieHandler.restoreCookies(cookies, domain),
         this.storageHandler.restoreStorageData(tabId, {
           localStorage,
           sessionStorage,
         }),
       ]);
+      
+      // Check for any failures
+      const failures = results.filter(r => r.status === 'rejected');
+      if (failures.length > 0) {
+        console.error('Some operations failed during session switch:', 
+          failures.map(f => (f as PromiseRejectedResult).reason));
+      }
 
+      // Step 3: Reload the tab to apply changes
+      console.log('Reloading tab:', tabId);
       await chrome.tabs.reload(tabId);
+      console.log('Session switch completed successfully');
     } catch (error) {
-      throw new ExtensionError(`Failed to switch session: ${error}`);
+      console.error('Failed to switch session:', error);
+      throw new ExtensionError(`Failed to switch session: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
 

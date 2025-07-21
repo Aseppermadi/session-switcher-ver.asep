@@ -2,22 +2,33 @@ import { SessionHandler } from "@background/handlers/session.handler";
 import { MESSAGE_ACTIONS } from "@shared/constants/messages";
 import { REQUIRED_PERMISSIONS } from "@shared/constants/requiredPermission";
 import { STORAGE_KEYS } from "@shared/constants/storageKeys";
-import { MessageType, SendResponseType, StoredSession } from "@shared/types";
+import { BaseMessage, MessageType, SendResponseType, StoredSession } from "@shared/types";
 import { handleError } from "@shared/utils/errorHandling";
 
 export class MessageService {
   private sessionHandler = new SessionHandler();
 
   handleMessage(message: MessageType, _: chrome.runtime.MessageSender, sendResponse: SendResponseType): boolean {
+    // Ensure we have a valid message object
+    if (!message || typeof message !== 'object' || !message.action) {
+      console.error('Invalid message received:', message);
+      sendResponse({ success: false, error: 'Invalid message format' });
+      return true;
+    }
+
+    console.log('Processing message:', message.action);
+    
     this.checkPermissions()
       .then(() => {
         return this.processMessage(message, sendResponse);
       })
       .catch((error) => {
         const errorMessage = handleError(error, "MessageService.handleMessage");
+        console.error('Error in message handling:', errorMessage);
         sendResponse({ success: false, error: errorMessage });
       });
 
+    // Return true to indicate that the response will be sent asynchronously
     return true;
   }
 
@@ -57,35 +68,48 @@ export class MessageService {
   }
 
   private async processMessage(message: MessageType, sendResponse: SendResponseType): Promise<void> {
-    switch (message.action) {
-      case MESSAGE_ACTIONS.GET_CURRENT_SESSION:
-        await this.handleGetCurrentSession(message, sendResponse);
-        break;
+    try {
+      console.log(`Processing action: ${message.action}`);
+      
+      switch (message.action) {
+        case MESSAGE_ACTIONS.GET_CURRENT_SESSION:
+          await this.handleGetCurrentSession(message, sendResponse);
+          break;
 
-      case MESSAGE_ACTIONS.SWITCH_SESSION:
-        await this.handleSwitchSession(message, sendResponse);
-        break;
+        case MESSAGE_ACTIONS.SWITCH_SESSION:
+          await this.handleSwitchSession(message, sendResponse);
+          break;
 
-      case MESSAGE_ACTIONS.CLEAR_SESSION:
-        await this.handleClearSession(message, sendResponse);
-        break;
-        
-      // GET_CURRENT_DOMAIN handler removed - now using URL parameters
-        
-      case MESSAGE_ACTIONS.CLEAR_SESSIONS:
-        await this.handleClearSessions(message, sendResponse);
-        break;
-        
-      case MESSAGE_ACTIONS.EXPORT_SESSIONS:
-        await this.handleExportSessions(message, sendResponse);
-        break;
-        
-      case MESSAGE_ACTIONS.IMPORT_SESSIONS:
-        await this.handleImportSessions(message, sendResponse);
-        break;
+        case MESSAGE_ACTIONS.CLEAR_SESSION:
+          await this.handleClearSession(message, sendResponse);
+          break;
+          
+        // GET_CURRENT_DOMAIN handler removed - now using URL parameters
+          
+        case MESSAGE_ACTIONS.CLEAR_SESSIONS:
+          await this.handleClearSessions(message, sendResponse);
+          break;
+          
+        case MESSAGE_ACTIONS.EXPORT_SESSIONS:
+          await this.handleExportSessions(message, sendResponse);
+          break;
+          
+        case MESSAGE_ACTIONS.IMPORT_SESSIONS:
+          await this.handleImportSessions(message, sendResponse);
+          break;
 
-      default:
-        sendResponse({ success: false, error: "Unknown action" });
+        default:
+          // Type assertion for unknown action types
+          const unknownMessage = message as BaseMessage;
+          console.error(`Unknown action: ${unknownMessage.action}`);
+          sendResponse({ success: false, error: `Unknown action: ${unknownMessage.action}` });
+      }
+    } catch (error) {
+      // Type assertion for unknown action types
+      const unknownMessage = message as BaseMessage;
+      console.error(`Error processing message ${unknownMessage.action}:`, error);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      sendResponse({ success: false, error: `Error processing ${unknownMessage.action}: ${errorMessage}` });
     }
   }
 
@@ -101,8 +125,25 @@ export class MessageService {
     message: Extract<MessageType, { action: "switchSession" }>,
     sendResponse: SendResponseType
   ): Promise<void> {
-    await this.sessionHandler.switchToSession(message.sessionData, message.tabId);
-    sendResponse({ success: true });
+    try {
+      console.log('Switching to session:', message.sessionData.id, 'for tab:', message.tabId);
+      
+      if (!message.sessionData || !message.tabId) {
+        console.error('Invalid session data or tab ID:', message);
+        sendResponse({ success: false, error: 'Invalid session data or tab ID' });
+        return;
+      }
+      
+      await this.sessionHandler.switchToSession(message.sessionData, message.tabId);
+      console.log('Successfully switched to session:', message.sessionData.id);
+      sendResponse({ success: true });
+    } catch (error) {
+      console.error('Error switching session:', error);
+      sendResponse({ 
+        success: false, 
+        error: error instanceof Error ? error.message : String(error)
+      });
+    }
   }
 
   private async handleClearSession(

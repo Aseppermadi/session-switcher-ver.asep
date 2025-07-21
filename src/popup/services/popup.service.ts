@@ -89,27 +89,57 @@ export class PopupService {
   }
 
   async switchToSession(sessionId: string): Promise<void> {
+    if (!sessionId) {
+      console.error('Invalid session ID provided');
+      throw new ExtensionError("Invalid session ID");
+    }
+
     try {
+      console.log(`Attempting to switch to session: ${sessionId}`);
+      
+      // Find the session in our state
       const session = this.state.sessions.find((s) => s.id === sessionId);
       if (!session) {
+        console.error(`Session not found: ${sessionId}`);
         throw new ExtensionError("Session not found");
       }
 
+      // Validate tab ID
+      if (!this.state.currentTab.id) {
+        console.error('No active tab ID available');
+        throw new ExtensionError("No active tab available");
+      }
+
+      console.log(`Sending switch session message for domain: ${this.state.currentDomain}, tab: ${this.state.currentTab.id}`);
+      
+      // Send message to background script
       const response = await this.chromeApi.sendMessage({
         action: MESSAGE_ACTIONS.SWITCH_SESSION,
         sessionData: session,
-        tabId: this.state.currentTab.id!,
+        tabId: this.state.currentTab.id,
       });
 
+      // Handle response
+      if (!response) {
+        console.error('No response received from background script');
+        throw new ExtensionError("No response received from background script");
+      }
+
       if (!response.success) {
+        console.error('Background script reported error:', response.error);
         throw new ExtensionError(response.error || "Failed to switch session");
       }
 
+      // Update state
+      console.log(`Successfully switched to session: ${sessionId}`);
       this.state.activeSessions[this.state.currentDomain] = sessionId;
       session.lastUsed = Date.now();
 
+      // Save updated state
       await this.saveStorageData();
+      console.log('Session state updated and saved');
     } catch (error) {
+      console.error('Error in switchToSession:', error);
       throw new ExtensionError(handleError(error, "PopupService.switchToSession"));
     }
   }

@@ -18,14 +18,38 @@ export class StorageHandler {
   }
 
   async restoreStorageData(tabId: number, data: StorageData): Promise<void> {
+    if (!tabId) {
+      console.error('Invalid tab ID for restoring storage data:', tabId);
+      throw new ExtensionError('Invalid tab ID for restoring storage data');
+    }
+
+    if (!data || (!data.localStorage && !data.sessionStorage)) {
+      console.warn('Empty storage data provided for restoration');
+      // Continue with empty data rather than throwing an error
+    }
+
+    console.log(`Restoring storage data for tab ${tabId}:`, {
+      localStorageKeys: data.localStorage ? Object.keys(data.localStorage).length : 0,
+      sessionStorageKeys: data.sessionStorage ? Object.keys(data.sessionStorage).length : 0
+    });
+
     try {
-      await chrome.scripting.executeScript({
+      const results = await chrome.scripting.executeScript({
         target: { tabId },
         func: injectStorageData,
-        args: [data.localStorage, data.sessionStorage],
+        args: [data.localStorage || {}, data.sessionStorage || {}],
       });
+
+      // Check if the script execution was successful
+      if (!results || results.length === 0 || results[0].result !== true) {
+        console.error('Storage data injection failed:', results);
+        throw new ExtensionError('Failed to inject storage data into the page');
+      }
+
+      console.log('Storage data successfully restored');
     } catch (error) {
-      throw new ExtensionError(`Failed to restore storage data: ${error}`);
+      console.error('Error restoring storage data:', error);
+      throw new ExtensionError(`Failed to restore storage data: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
 
