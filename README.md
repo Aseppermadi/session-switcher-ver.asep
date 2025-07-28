@@ -1,4 +1,4 @@
-# 🔄 Session Switcher 2
+# 🔄 Session Switcher ver.asep
 
 **Session Switcher** is a browser extension that allows users to manage, save, and switch between multiple login sessions with ease. It's especially useful for developers, testers, or anyone who frequently switches between accounts or environments.
 
